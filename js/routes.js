@@ -24,6 +24,10 @@
   ];
 
   function currentPage() {
+    if (window.__wwPageKey && window.__wwResolveSiteUrl) {
+      return window.__wwPageKey(window.__wwResolveSiteUrl(location.href));
+    }
+
     const parts = location.pathname.split("/").filter(Boolean);
     let start = 0;
 
@@ -146,7 +150,9 @@
       return depth ? "../".repeat(depth) : "";
     })();
 
-    iframe.src = src ? `${prefix}${src}` : `${prefix}index.html`;
+    iframe.src = window.__wwSiteRoot
+      ? new URL(src || "index.html", window.__wwSiteRoot()).href
+      : `${prefix}${src || "index.html"}`;
   };
 
   window.__wwInitRoutesBackdrop();

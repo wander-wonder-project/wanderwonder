@@ -10,6 +10,12 @@
     "wanderwonder",
   ];
 
+  function siteRootUrl() {
+    const script = document.querySelector('script[src*="navigation.js"]');
+    if (script) return new URL("../", script.src).href;
+    return new URL("./", location.href).href;
+  }
+
   function pageKey(url) {
     const u = new URL(url, location.href);
     const parts = u.pathname.split("/").filter(Boolean);
@@ -26,8 +32,19 @@
     return parts.slice(start).join("/") || "index.html";
   }
 
+  function resolveSiteUrl(href) {
+    const target = new URL(href, location.href);
+    const relative = pageKey(target.href);
+    return new URL(relative, siteRootUrl()).href;
+  }
+
+  function historyUrl(resolvedHref) {
+    const target = new URL(resolvedHref);
+    return target.pathname + target.search + target.hash;
+  }
+
   function jsPrefix(url) {
-    const key = pageKey(url);
+    const key = pageKey(resolveSiteUrl(url));
     const depth = key.includes("/") ? key.split("/").length - 1 : 0;
     return depth ? "../".repeat(depth) : "";
   }
@@ -42,7 +59,7 @@
     link.crossOrigin = "anonymous";
     link.href = new URL(
       `${jsPrefix(location.href)}assets/Arial Narrow.ttf`,
-      location.href
+      siteRootUrl()
     ).href;
     link.dataset.wwFontPreload = "true";
     document.head.appendChild(link);
@@ -52,7 +69,7 @@
 
   function isInternal(url) {
     try {
-      const target = new URL(url, location.href);
+      const target = new URL(resolveSiteUrl(url));
       return (
         target.origin === location.origin &&
         !target.pathname.match(/\.(pdf|zip|docx)$/i)
@@ -79,7 +96,7 @@
 
   function storeRoutesBackdrop() {
     if (!document.body.classList.contains("page-routes")) {
-      sessionStorage.setItem("ww-routes-backdrop", pageKey(location.href));
+      sessionStorage.setItem("ww-routes-backdrop", pageKey(resolveSiteUrl(location.href)));
     }
   }
 
@@ -121,7 +138,7 @@
       scripts.push(`${prefix}scroll-fade.js`);
     }
 
-    return scripts.map((path) => new URL(path, pageUrl).href);
+    return scripts.map((path) => new URL(path, siteRootUrl()).href);
   }
 
   async function initPage(doc, pageUrl) {
@@ -198,7 +215,7 @@
     if (!hasPage) return;
 
     if (push) {
-      history.pushState({ wwUrl: pageUrl }, "", pageUrl);
+      history.pushState({ wwUrl: pageUrl }, "", historyUrl(pageUrl));
     }
 
     await initPage(doc, pageUrl);
@@ -207,8 +224,8 @@
   async function navigateTo(href, push = true) {
     if (navigating) return;
 
-    const url = new URL(href, location.href).href;
-    if (url === location.href) return;
+    const url = resolveSiteUrl(href);
+    if (url === resolveSiteUrl(location.href)) return;
 
     navigating = true;
 
@@ -220,7 +237,7 @@
       const doc = new DOMParser().parseFromString(html, "text/html");
       await swapPage(doc, url, push);
     } catch (_) {
-      location.href = href;
+      location.href = url;
     } finally {
       navigating = false;
     }
@@ -253,5 +270,11 @@
     }
   });
 
-  history.replaceState({ wwUrl: location.href }, "", location.href);
+  const bootUrl = resolveSiteUrl(location.href);
+  history.replaceState({ wwUrl: bootUrl }, "", historyUrl(bootUrl));
+
+  window.__wwSiteRoot = siteRootUrl;
+  window.__wwResolveSiteUrl = resolveSiteUrl;
+  window.__wwPageKey = pageKey;
+  window.__wwHistoryUrl = historyUrl;
 })();
